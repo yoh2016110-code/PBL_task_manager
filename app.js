@@ -333,6 +333,12 @@ function scheduleSyncPush() {
 }
 
 async function initializeSync() {
+  if (!usesSupabaseSync() && location.protocol !== "file:") {
+    setSyncStatus("cloud-config.jsにSupabaseのURLとanon keyを設定してください。", true);
+    setLoginVisible(false);
+    return;
+  }
+
   if (!usesSupabaseSync() && location.protocol === "file:") {
     setSyncStatus("同期するには公開URLから開いてください。", true);
     setLoginVisible(false);
@@ -372,7 +378,7 @@ async function initializeSync() {
       pullRemoteState().catch(() => {});
     }, 20000);
   } catch (error) {
-    setSyncStatus("同期サーバーに接続できません。", true);
+    setSyncStatus(error.message || "同期サーバーに接続できません。", true);
     setLoginVisible(false);
   }
 }
