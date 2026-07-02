@@ -43,6 +43,7 @@ const els = {
   aiStatus: document.querySelector("#aiStatus"),
   aiSuggestions: document.querySelector("#aiSuggestions"),
   evaluateDay: document.querySelector("#evaluateDay"),
+  generateDiary: document.querySelector("#generateDiary"),
   aiGradeStatus: document.querySelector("#aiGradeStatus"),
   aiGradeResult: document.querySelector("#aiGradeResult"),
   taskForm: document.querySelector("#taskForm"),
@@ -93,6 +94,11 @@ function getSupabaseConfig() {
   const url = String(config.url || "").replace(/\/+$/, "");
   const anonKey = String(config.anonKey || "");
   return url && anonKey ? { url, anonKey } : null;
+}
+
+function getAiProxyBaseUrl() {
+  const url = String(window.GTJ_AI_PROXY_URL || "").replace(/\/+$/, "");
+  return url;
 }
 
 function usesSupabaseSync() {
@@ -435,6 +441,8 @@ function setView(view) {
 }
 
 function getAiBaseUrl() {
+  const proxyUrl = getAiProxyBaseUrl();
+  if (proxyUrl) return proxyUrl;
   if (location.protocol === "file:") return "http://127.0.0.1:8787";
   return "";
 }
@@ -993,6 +1001,32 @@ function getRecentEntries() {
     }));
 }
 
+function getDiaryPayload() {
+  const entry = getEntry();
+  return {
+    goal: getActiveGoalText(),
+    date: els.entryDate.value,
+    place: els.entryPlace.value || entry.place || "",
+    context: els.entryContext.value || entry.context || "",
+    currentReflection: els.reflection.value || entry.reflection || "",
+    grade: currentGrade,
+    suggestedGrade: suggestGrade(entry.tasks),
+    completionRate: els.completionRate.textContent,
+    weightScore: els.weightScore.textContent,
+    workTime: els.workTime.textContent,
+    health: getHealthForDate() || null,
+    screenTime: entry.screenTime || null,
+    tasks: entry.tasks.map((task) => ({
+      title: task.title,
+      weight: task.weight,
+      minimum: task.minimum,
+      done: task.done,
+      elapsedSeconds: getTaskElapsedSeconds(task),
+    })),
+    recentEntries: getRecentEntries(),
+  };
+}
+
 function sameDate(value, date) {
   return String(value || "").slice(0, 10) === date;
 }
@@ -1226,12 +1260,18 @@ function setAiGradeStatus(message, isError = false) {
 }
 
 async function postAi(path, body) {
-  if (usesSupabaseSync()) {
-    throw new Error("完全無料版ではAI機能はオフです。AIを使う場合はOpenAI API料金が発生する可能性があります。");
+  if (usesSupabaseSync() && !getAiProxyBaseUrl()) {
+    throw new Error("AI機能にはOpenAI APIキーを置いたAIサーバーが必要です。APIキーを画面側に書かないでください。");
+  }
+  const session = getSupabaseSession();
+  const headers = { "Content-Type": "application/json" };
+  if (getAiProxyBaseUrl() && session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
   }
   const response = await fetch(`${getAiBaseUrl()}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: getAiProxyBaseUrl() ? "omit" : "same-origin",
+    headers,
     body: JSON.stringify(body),
   });
   const data = await response.json().catch(() => ({}));
@@ -1412,6 +1452,31 @@ els.evaluateDay.addEventListener("click", async () => {
     setAiGradeStatus(error.message, true);
   } finally {
     els.evaluateDay.disabled = false;
+  }
+});
+
+els.generateDiary.addEventListener("click", async () => {
+  const entry = getEntry();
+  if (!entry.tasks.length && !els.reflection.value.trim() && !els.entryContext.value.trim()) {
+    setAiGradeStatus("日記生成には、タスク・状況メモ・一言メモのどれかを入力してください。", true);
+    return;
+  }
+
+  setAiGradeStatus("日記を生成中...");
+  els.generateDiary.disabled = true;
+  try {
+    const result = await postAi("/api/generate-diary", getDiaryPayload());
+    if (!result.diary) throw new Error("AI日記の形式を読み取れませんでした。");
+    const entry = getEntry();
+    entry.reflection = result.diary;
+    els.reflection.value = result.diary;
+    saveState();
+    render();
+    setAiGradeStatus("日記を生成しました。");
+  } catch (error) {
+    setAiGradeStatus(error.message, true);
+  } finally {
+    els.generateDiary.disabled = false;
   }
 });
 
