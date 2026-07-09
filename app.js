@@ -601,23 +601,43 @@ function renderHealth(health) {
     return;
   }
 
-  const metrics = [
-    ["歩数", `${Number(health.steps || 0).toLocaleString()}歩`],
-    ["睡眠", formatMinutes(health.sleepMinutes || 0)],
-    ["ワークアウト", formatMinutes(health.workoutMinutes || 0)],
-    ["消費エネルギー", `${Math.round(health.activeEnergy || 0).toLocaleString()}kcal`],
-  ];
+  const metrics = [["歩数", `${Number(health.steps || 0).toLocaleString()}歩`]];
+  if (health.sleepMinutes != null) metrics.push(["睡眠", formatMinutes(health.sleepMinutes || 0)]);
+  if (health.workoutMinutes != null) metrics.push(["ワークアウト", formatMinutes(health.workoutMinutes || 0)]);
+  if (health.activeEnergy != null) {
+    metrics.push(["消費エネルギー", `${Math.round(health.activeEnergy || 0).toLocaleString()}kcal`]);
+  }
 
   metrics.forEach(([label, value]) => appendMetric(els.healthSummary, label, value));
 
+  const chartRows = [
+    { label: "歩数", value: Number(health.steps || 0) / 8000, display: `${Number(health.steps || 0).toLocaleString()}歩` },
+  ];
+  if (health.sleepMinutes != null) {
+    chartRows.push({
+      label: "睡眠",
+      value: Number(health.sleepMinutes || 0) / 420,
+      display: `${(Number(health.sleepMinutes || 0) / 60).toFixed(1)}h`,
+    });
+  }
+  if (health.workoutMinutes != null) {
+    chartRows.push({
+      label: "運動",
+      value: Number(health.workoutMinutes || 0) / 30,
+      display: `${Math.round(health.workoutMinutes || 0)}分`,
+    });
+  }
+  if (health.activeEnergy != null) {
+    chartRows.push({
+      label: "消費",
+      value: Number(health.activeEnergy || 0) / 500,
+      display: `${Math.round(health.activeEnergy || 0).toLocaleString()}kcal`,
+    });
+  }
+
   drawInlineBarChart(
     els.healthTodayChart,
-    [
-      { label: "歩数", value: Number(health.steps || 0) / 8000, display: `${Number(health.steps || 0).toLocaleString()}歩` },
-      { label: "睡眠", value: Number(health.sleepMinutes || 0) / 420, display: `${(Number(health.sleepMinutes || 0) / 60).toFixed(1)}h` },
-      { label: "運動", value: Number(health.workoutMinutes || 0) / 30, display: `${Math.round(health.workoutMinutes || 0)}分` },
-      { label: "消費", value: Number(health.activeEnergy || 0) / 500, display: `${Math.round(health.activeEnergy || 0).toLocaleString()}kcal` },
-    ],
+    chartRows,
     { color: "#0f766e" }
   );
 }
@@ -1105,15 +1125,30 @@ function parseAppleHealthXmlByDate(xmlText) {
 function normalizeShortcutHealthItem(item, fallbackDate = "") {
   const date = String(item.date || item.sourceDate || item["日付"] || fallbackDate || todayString).slice(0, 10);
   if (!date) throw new Error("ショートカットJSONに日付がありません。");
-  return {
+  const hasValue = (...keys) => keys.some((key) => item[key] != null && item[key] !== "");
+  const health = {
     importedAt: new Date().toISOString(),
+    source: "shortcut",
     sourceDate: date,
     steps: Math.round(Number(item.steps ?? item.stepCount ?? item["歩数"] ?? 0) || 0),
-    sleepMinutes: Math.round(Number(item.sleepMinutes ?? item.sleep ?? item["睡眠分"] ?? item["睡眠"] ?? 0) || 0),
-    workoutMinutes: Math.round(Number(item.workoutMinutes ?? item.exerciseMinutes ?? item["運動分"] ?? item["運動"] ?? 0) || 0),
-    activeEnergy: Math.round(Number(item.activeEnergy ?? item.calories ?? item["消費カロリー"] ?? item["アクティブエネルギー"] ?? 0) || 0),
-    walkingDistance: Number(item.walkingDistance ?? item.distance ?? item["歩行距離"] ?? 0) || 0,
   };
+  if (hasValue("sleepMinutes", "sleep", "睡眠分", "睡眠")) {
+    health.sleepMinutes = Math.round(Number(item.sleepMinutes ?? item.sleep ?? item["睡眠分"] ?? item["睡眠"] ?? 0) || 0);
+  }
+  if (hasValue("workoutMinutes", "exerciseMinutes", "運動分", "運動")) {
+    health.workoutMinutes = Math.round(
+      Number(item.workoutMinutes ?? item.exerciseMinutes ?? item["運動分"] ?? item["運動"] ?? 0) || 0
+    );
+  }
+  if (hasValue("activeEnergy", "calories", "消費カロリー", "アクティブエネルギー")) {
+    health.activeEnergy = Math.round(
+      Number(item.activeEnergy ?? item.calories ?? item["消費カロリー"] ?? item["アクティブエネルギー"] ?? 0) || 0
+    );
+  }
+  if (hasValue("walkingDistance", "distance", "歩行距離")) {
+    health.walkingDistance = Number(item.walkingDistance ?? item.distance ?? item["歩行距離"] ?? 0) || 0;
+  }
+  return health;
 }
 
 function parseShortcutHealthJson(jsonText, fallbackDate = els.entryDate.value) {
@@ -1127,11 +1162,21 @@ function parseShortcutHealthJson(jsonText, fallbackDate = els.entryDate.value) {
       ...(byDate[health.sourceDate] || {}),
       ...health,
       steps: (byDate[health.sourceDate]?.steps || 0) + health.steps,
-      sleepMinutes: (byDate[health.sourceDate]?.sleepMinutes || 0) + health.sleepMinutes,
-      workoutMinutes: (byDate[health.sourceDate]?.workoutMinutes || 0) + health.workoutMinutes,
-      activeEnergy: (byDate[health.sourceDate]?.activeEnergy || 0) + health.activeEnergy,
-      walkingDistance: (byDate[health.sourceDate]?.walkingDistance || 0) + health.walkingDistance,
     };
+    if (health.sleepMinutes != null) {
+      byDate[health.sourceDate].sleepMinutes = (byDate[health.sourceDate]?.sleepMinutes || 0) + health.sleepMinutes;
+    }
+    if (health.workoutMinutes != null) {
+      byDate[health.sourceDate].workoutMinutes =
+        (byDate[health.sourceDate]?.workoutMinutes || 0) + health.workoutMinutes;
+    }
+    if (health.activeEnergy != null) {
+      byDate[health.sourceDate].activeEnergy = (byDate[health.sourceDate]?.activeEnergy || 0) + health.activeEnergy;
+    }
+    if (health.walkingDistance != null) {
+      byDate[health.sourceDate].walkingDistance =
+        (byDate[health.sourceDate]?.walkingDistance || 0) + health.walkingDistance;
+    }
   });
 
   return byDate;
