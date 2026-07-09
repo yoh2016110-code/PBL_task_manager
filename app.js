@@ -479,7 +479,9 @@ function pruneGoals() {
 
 function getActiveGoalText() {
   pruneGoals();
-  return (state.goals || []).map((goal) => `${goal.title}（期限: ${goal.deadline || "未設定"}）`).join("\n");
+  return (state.goals || [])
+    .map((goal) => `${goal.course ? `[${goal.course}] ` : ""}${goal.title}（期限: ${goal.deadline || "未設定"}）`)
+    .join("\n");
 }
 
 function setCleStatus(message, isError = false) {
@@ -508,6 +510,40 @@ function parseIcsDate(value = "") {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
+function extractCourseFromText(text = "") {
+  const value = String(text || "").replace(/\s+/g, " ").trim();
+  const patterns = [
+    /(?:Course|Class|授業|科目|講義|コース)\s*[:：]\s*([^,;|／/]+)/i,
+    /(?:^|\s)([^,;|／/]+?)\s*(?:課題|Assignment|レポート|小テスト)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = value.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "";
+}
+
+function splitCourseAndTitle(title = "") {
+  const text = String(title || "").trim();
+  const separators = ["：", ":", " - ", " – ", " — ", "／", "/"];
+  for (const separator of separators) {
+    const index = text.indexOf(separator);
+    if (index > 0 && index < text.length - separator.length) {
+      const course = text.slice(0, index).trim();
+      const assignmentTitle = text.slice(index + separator.length).trim();
+      if (course.length >= 2 && assignmentTitle.length >= 2) return { course, title: assignmentTitle };
+    }
+  }
+  return { course: "", title: text };
+}
+
+function removeCoursePrefix(title = "", course = "") {
+  const text = String(title || "").trim();
+  const courseText = String(course || "").trim();
+  if (!courseText || !text.startsWith(courseText)) return text;
+  return text.slice(courseText.length).replace(/^[\s:：／/・\-–—]+/, "").trim() || text;
+}
+
 function parseCleIcs(text) {
   const lines = unfoldIcs(text);
   const assignments = [];
@@ -531,9 +567,22 @@ function parseCleIcs(text) {
     const value = line.slice(separator + 1);
     if (key === "SUMMARY") event.title = decodeIcsValue(value);
     if (key === "DESCRIPTION" && !event.description) event.description = decodeIcsValue(value);
+    if (key === "LOCATION" && !event.location) event.location = decodeIcsValue(value);
+    if (key === "CATEGORIES" && !event.course) event.course = decodeIcsValue(value);
     if (key === "DUE" || key === "DTEND" || key === "DTSTART") {
       event.deadline = event.deadline || parseIcsDate(value);
     }
+  });
+
+  assignments.forEach((assignment) => {
+    const split = splitCourseAndTitle(assignment.title);
+    const courseFromTitle = split.course || extractCourseFromText(assignment.title);
+    assignment.course =
+      assignment.course ||
+      extractCourseFromText(assignment.description) ||
+      extractCourseFromText(assignment.location) ||
+      courseFromTitle;
+    assignment.title = split.course ? split.title : removeCoursePrefix(assignment.title, courseFromTitle);
   });
 
   return assignments;
@@ -546,14 +595,21 @@ function parseCleCsv(text) {
   const findHeader = (...names) => headers.findIndex((header) => names.some((name) => header.includes(name)));
   const titleIndex = findHeader("title", "name", "summary", "assignment", "課題", "タイトル", "件名");
   const dueIndex = findHeader("due", "deadline", "date", "期限", "締切", "期日", "日付");
+  const courseIndex = findHeader("course", "class", "subject", "授業", "科目", "講義", "コース");
   if (titleIndex < 0 || dueIndex < 0) return [];
 
   return rows
     .slice(1)
-    .map((row) => ({
-      title: String(row[titleIndex] || "").trim(),
-      deadline: normalizeDateString(row[dueIndex]),
-    }))
+    .map((row) => {
+      const rawTitle = String(row[titleIndex] || "").trim();
+      const split = splitCourseAndTitle(rawTitle);
+      const courseFromTitle = split.course || extractCourseFromText(rawTitle);
+      return {
+        title: split.course ? split.title : removeCoursePrefix(rawTitle, courseFromTitle),
+        course: courseIndex >= 0 ? String(row[courseIndex] || "").trim() : courseFromTitle,
+        deadline: normalizeDateString(row[dueIndex]),
+      };
+    })
     .filter((item) => item.title && item.deadline);
 }
 
@@ -573,12 +629,18 @@ function parseCleText(text) {
     .filter(Boolean)
     .map((line) => {
       const deadline = normalizeDateString(line);
-      const title = line
+      const cleaned = line
         .replace(/\d{4}[-/年.]\d{1,2}[-/月.]\d{1,2}日?/g, "")
         .replace(/\d{1,2}[-/月.]\d{1,2}日?/g, "")
         .replace(/期限|締切|期日|Due:?/gi, "")
         .trim();
-      return { title: title || line, deadline };
+      const split = splitCourseAndTitle(cleaned || line);
+      const courseFromTitle = split.course || extractCourseFromText(cleaned || line);
+      return {
+        title: split.course ? split.title : removeCoursePrefix(cleaned || line, courseFromTitle),
+        course: courseFromTitle,
+        deadline,
+      };
     })
     .filter((item) => item.title && item.deadline);
 }
@@ -597,26 +659,38 @@ function parseCleAssignments(text, fileName = "") {
     return rows
       .map((item) => ({
         title: String(item.title || item.name || item.summary || item["課題"] || "").trim(),
+        course: String(item.course || item.class || item.subject || item["授業"] || item["科目"] || item["講義"] || "").trim(),
         deadline: normalizeDateString(item.deadline || item.due || item.date || item["期限"] || item["締切"] || ""),
       }))
+      .map((item) => {
+        const split = splitCourseAndTitle(item.title);
+        const courseFromTitle = split.course || extractCourseFromText(item.title);
+        return {
+          ...item,
+          title: split.course ? split.title : removeCoursePrefix(item.title, courseFromTitle),
+          course: item.course || courseFromTitle,
+        };
+      })
       .filter((item) => item.title && item.deadline);
   }
   return parseCleText(text);
 }
 
 function importCleAssignments(assignments) {
-  const existing = new Set((state.goals || []).map((goal) => `${goal.title}::${goal.deadline}`));
+  const existing = new Set((state.goals || []).map((goal) => `${goal.course || ""}::${goal.title}::${goal.deadline}`));
   let added = 0;
   assignments.forEach((assignment) => {
     const title = String(assignment.title || "").trim();
+    const course = String(assignment.course || "").trim();
     const deadline = normalizeDateString(assignment.deadline);
     if (!title || !deadline) return;
-    const key = `${title}::${deadline}`;
+    const key = `${course}::${title}::${deadline}`;
     if (existing.has(key)) return;
     existing.add(key);
     state.goals.push({
       id: crypto.randomUUID(),
       title,
+      course,
       deadline,
       source: "cle",
       createdAt: new Date().toISOString(),
@@ -700,10 +774,11 @@ function renderGoals() {
   (state.goals || []).forEach((goal) => {
     const item = document.createElement("li");
     item.className = "goal-item";
+    const meta = `${goal.course ? `${goal.course} / ` : ""}期限 ${goal.deadline || "未設定"}`;
     item.innerHTML = `
       <div class="goal-main">
         <strong>${escapeHtml(goal.title)}</strong>
-        <span>期限 ${escapeHtml(goal.deadline || "未設定")}</span>
+        <span>${escapeHtml(meta)}</span>
       </div>
       <button type="button" class="ghost">達成</button>
       <button type="button" class="icon-button" aria-label="削除">×</button>
