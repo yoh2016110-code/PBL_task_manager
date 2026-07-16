@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#0f766e">
     <title>Goal Task Journal</title>
-    <link rel="manifest" href="manifest.webmanifest?v=20260716-6">
+    <link rel="manifest" href="manifest.webmanifest?v=20260717-web-cle19">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icon.svg">
-    <link rel="stylesheet" href="styles.css?v=20260716-6">
+    <link rel="stylesheet" href="styles.css?v=20260717-web-cle19">
   </head>
   <body>
     <main class="app">
@@ -19,7 +19,7 @@
         <div>
           <p class="eyebrow">Goal Task Journal</p>
           <h1>目標と今日のタスク</h1>
-          <p class="app-version">更新版 v2026-07-16-6</p>
+          <p class="app-version">Web版 v2026-07-17-CLE19</p>
         </div>
         <div class="date-box">
           <label for="entryDate">日付</label>
@@ -28,76 +28,108 @@
       </header>
 
       <nav class="view-switch" aria-label="ページ切り替え">
-        <button id="todayViewButton" type="button" class="view-button active" data-view="today">今日の入力</button>
+        <button id="todayViewButton" type="button" class="view-button active" data-view="today">期限・目標</button>
+        <button id="todoViewButton" type="button" class="view-button" data-view="todo">To Do</button>
+        <button id="healthViewButton" type="button" class="view-button" data-view="health">ヘルスケア</button>
+        <button id="reviewViewButton" type="button" class="view-button" data-view="review">AI評価</button>
         <button id="recordsViewButton" type="button" class="view-button" data-view="records">記録一覧</button>
       </nav>
 
       <div id="todayView" class="app-view active">
-        <section class="goal-panel" aria-labelledby="goalTitle">
+        <section class="urgent-panel" aria-labelledby="urgentTitle">
           <div class="section-head">
-            <h2 id="goalTitle">直近の目標・提出課題</h2>
-            <span id="goalStatus" class="status-pill">未設定</span>
-          </div>
-          <form id="goalForm" class="goal-form">
-            <div class="field title-field">
-              <label for="goalInput">目標・課題</label>
-              <input id="goalInput" type="text" placeholder="例: 英語レポートを提出する" required>
-            </div>
-            <div class="field compact">
-              <label for="goalDeadline">期限</label>
-              <input id="goalDeadline" type="date" required>
-            </div>
-            <button type="submit" class="primary">登録</button>
-          </form>
-          <div class="cle-import">
             <div>
-              <h3>CLE課題インポート</h3>
-              <p class="panel-note">CLEの課題用カレンダー共有リンク、または課題用.ics/CSV/JSONを読み込みます。</p>
+              <h2 id="urgentTitle">期限が近い課題</h2>
+              <p class="panel-note">期限切れ、今日・明日、1週間以内の順に表示します。</p>
             </div>
-            <input id="cleCalendarUrl" type="url" placeholder="webcal:// または https://... .ics">
-            <button id="cleFetch" type="button" class="primary">更新</button>
-            <label class="file-button ghost-file">
-              <input id="cleFile" type="file" accept=".ics,text/calendar,.csv,text/csv,.json,application/json,.txt,text/plain">
-              ファイル
-            </label>
-            <button id="clePaste" type="button" class="ghost">貼り付け</button>
-            <span id="cleStatus" class="ai-status" role="status"></span>
+            <span id="urgentStatus" class="status-pill">確認中</span>
           </div>
-          <ul id="goalList" class="goal-list"></ul>
+          <div id="urgentDeadlineList" class="urgent-list"></div>
         </section>
 
-        <section class="monthly-panel" aria-labelledby="monthlyTitle">
+        <section class="planning-panel" aria-labelledby="planningTitle">
           <div class="section-head">
             <div>
-              <h2 id="monthlyTitle">予定カレンダー</h2>
-              <p class="panel-note">提出期限と読み込んだ予定を月表示で確認できます。</p>
+              <h2 id="planningTitle">目標・提出課題</h2>
+              <p class="panel-note">課題一覧とカレンダーを切り替えて確認できます。</p>
             </div>
-            <div class="month-controls">
-              <button id="prevMonth" class="icon-button" type="button" aria-label="前の月">‹</button>
-              <strong id="monthLabel"></strong>
-              <button id="nextMonth" class="icon-button" type="button" aria-label="次の月">›</button>
+            <div class="planning-switch" aria-label="課題とカレンダーの切り替え">
+              <button id="planningGoalsButton" type="button" class="view-button active">課題</button>
+              <button id="planningCalendarButton" type="button" class="view-button">カレンダー</button>
             </div>
           </div>
-          <div class="monthly-board" aria-label="月間カレンダー">
-            <div class="weekday-row" aria-hidden="true">
-              <span>日</span>
-              <span>月</span>
-              <span>火</span>
-              <span>水</span>
-              <span>木</span>
-              <span>金</span>
-              <span>土</span>
+          <div id="planningGoalsPane" class="planning-pane active">
+            <div class="section-head compact-head">
+              <h3 id="goalTitle">直近の目標・提出課題</h3>
+              <span id="goalStatus" class="status-pill">未設定</span>
             </div>
-            <div id="monthGrid" class="month-grid"></div>
+            <form id="goalForm" class="goal-form">
+              <div class="field title-field">
+                <label for="goalInput">目標・課題</label>
+                <input id="goalInput" type="text" placeholder="例: 英語レポートを提出する" required>
+              </div>
+              <div class="field compact">
+                <label for="goalDeadline">期限</label>
+                <input id="goalDeadline" type="date" required>
+              </div>
+              <button type="submit" class="primary">登録</button>
+            </form>
+            <div class="cle-import">
+              <div>
+                <h3>CLE課題インポート</h3>
+                <p class="panel-note">CLEの課題用カレンダー共有リンク、または課題用.ics/CSV/JSONを読み込みます。</p>
+              </div>
+              <input id="cleCalendarUrl" type="url" placeholder="webcal:// または https://... .ics">
+              <button id="clePasteLink" type="button" class="ghost">リンク貼付</button>
+              <button id="cleFetch" type="button" class="primary">更新</button>
+              <label class="file-button ghost-file">
+                <input id="cleFile" type="file" accept=".ics,text/calendar,.csv,text/csv,.json,application/json,.txt,text/plain">
+                ファイル
+              </label>
+              <button id="clePaste" type="button" class="ghost">課題貼付</button>
+              <span id="cleStatus" class="ai-status" role="status"></span>
+            </div>
+            <ul id="goalList" class="goal-list"></ul>
           </div>
-          <div id="dayAgenda" class="day-agenda"></div>
+
+          <div id="planningCalendarPane" class="planning-pane">
+            <div class="section-head compact-head">
+              <div>
+                <h3 id="monthlyTitle">予定カレンダー</h3>
+                <p class="panel-note">直近の目標・提出期限と読み込んだ予定を月表示で確認できます。</p>
+              </div>
+              <div class="month-controls">
+                <button id="prevMonth" class="icon-button" type="button" aria-label="前の月">‹</button>
+                <strong id="monthLabel"></strong>
+                <button id="nextMonth" class="icon-button" type="button" aria-label="次の月">›</button>
+              </div>
+            </div>
+            <div class="calendar-filter-switch" aria-label="カレンダー表示の切り替え">
+              <button id="calendarAllButton" type="button" class="view-button active">すべて</button>
+              <button id="calendarGoalsButton" type="button" class="view-button">課題期限</button>
+              <button id="calendarEventsButton" type="button" class="view-button">予定のみ</button>
+            </div>
+            <div class="monthly-board" aria-label="月間カレンダー">
+              <div class="weekday-row" aria-hidden="true">
+                <span>日</span>
+                <span>月</span>
+                <span>火</span>
+                <span>水</span>
+                <span>木</span>
+                <span>金</span>
+                <span>土</span>
+              </div>
+              <div id="monthGrid" class="month-grid"></div>
+            </div>
+            <div id="dayAgenda" class="day-agenda"></div>
+          </div>
         </section>
 
         <section class="calendar-panel" aria-labelledby="calendarTitle">
           <div class="section-head">
             <div>
               <h2 id="calendarTitle">カレンダー予定</h2>
-              <p class="panel-note">iPhone/Googleカレンダーなどの予定.icsを読み込みます。課題期限は上のCLE欄へ。</p>
+              <p class="panel-note">カレンダーから書き出した.icsを読み込みます。予定はAI提案に反映されます。</p>
             </div>
             <div class="file-actions">
               <label class="file-button">
@@ -110,12 +142,15 @@
           <div id="calendarSummary" class="calendar-list"></div>
           <span id="calendarStatus" class="ai-status" role="status"></span>
         </section>
+      </div>
+
+      <div id="todoView" class="app-view">
 
         <section class="ai-panel" aria-labelledby="aiTitle">
           <div class="section-head">
             <div>
               <h2 id="aiTitle">AIアシスト</h2>
-              <p class="panel-note">目標と履歴から今日のタスク案を作ります。</p>
+              <p class="panel-note">目標、予定、履歴から今日のタスク案を作ります。</p>
             </div>
             <button id="suggestTasks" class="primary" type="button">タスク提案</button>
           </div>
@@ -179,18 +214,20 @@
             </section>
           </div>
         </section>
+      </div>
+
+      <div id="healthView" class="app-view">
 
         <section class="health-panel" aria-labelledby="healthTitle">
           <div class="section-head">
             <div>
               <h2 id="healthTitle">ヘルスケア情報</h2>
-              <p class="panel-note">ショートカットで作ったJSON、またはヘルスケアから書き出したexport.xmlを読み込みます。</p>
+              <p class="panel-note">iPhoneショートカットで作ったヘルスケアJSONを読み込みます。export.xmlも読み込めます。</p>
             </div>
             <div class="file-actions">
-              <button id="runHealthShortcut" class="ghost" type="button">ショートカット同期</button>
               <label class="file-button">
-                <input id="healthFile" type="file" accept=".json,application/json,.xml,text/xml,application/xml">
-                読み込む
+                <input id="healthFile" type="file" accept=".xml,.json,text/xml,application/xml,application/json">
+                ショートカットJSON
               </label>
             </div>
           </div>
@@ -205,7 +242,7 @@
           <div class="section-head">
             <div>
               <h2 id="screenTitle">スクリーンタイム</h2>
-              <p class="panel-note">CSVまたはスクリーンタイムのスクショを読み込みます。</p>
+              <p class="panel-note">CSVまたはスクリーンタイムのスクショを読み込みます。スクショは複数枚選べます。</p>
             </div>
             <div class="file-actions">
               <label class="file-button">
@@ -231,6 +268,9 @@
           </div>
           <span id="screenStatus" class="ai-status" role="status"></span>
         </section>
+      </div>
+
+      <div id="reviewView" class="app-view">
 
         <section class="review-panel" aria-labelledby="reviewTitle">
           <div class="section-head">
@@ -246,7 +286,6 @@
           </div>
           <div class="review-actions">
             <button id="evaluateDay" class="ghost" type="button">AIで今日を評価</button>
-            <button id="generateDiary" class="ghost" type="button">AIで日記生成</button>
             <span id="aiGradeStatus" class="ai-status" role="status"></span>
           </div>
           <div id="aiGradeResult" class="ai-grade-result" hidden></div>
@@ -257,14 +296,68 @@
             </div>
             <div class="field">
               <label for="entryContext">状況メモ</label>
-              <input id="entryContext" type="text" placeholder="例: 眠め、集中できた、移動中">
+              <input id="entryContext" type="text" placeholder="例: 朝、集中できた、移動中">
             </div>
           </div>
           <textarea id="reflection" rows="3" placeholder="今日の振り返り"></textarea>
         </section>
+
+        <section class="diary-panel" aria-labelledby="diaryTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="diaryTitle">AI日記</h2>
+              <p class="panel-note">タスク、場所、ヘルスケア、スクリーンタイムをもとに日記を作ります。</p>
+            </div>
+            <button id="generateDiary" class="primary" type="button">日記生成</button>
+          </div>
+          <div id="aiDiaryResult" class="ai-diary-result" hidden></div>
+          <span id="aiDiaryStatus" class="ai-status" role="status"></span>
+        </section>
       </div>
 
       <div id="recordsView" class="app-view">
+        <section class="sync-panel" aria-labelledby="syncTitle">
+          <div class="section-head">
+            <div>
+              <h2 id="syncTitle">スマホ同期</h2>
+              <p class="panel-note">MacとスマホWeb版で同じメールアドレスとパスワードを使うと、同じデータを共有できます。</p>
+            </div>
+          </div>
+          <div class="sync-form">
+            <div class="field">
+              <label for="syncEmail">メールアドレス</label>
+              <input id="syncEmail" type="email" autocomplete="email" placeholder="name@example.com">
+            </div>
+            <div class="field">
+              <label for="syncPassword">パスワード</label>
+              <input id="syncPassword" type="password" autocomplete="current-password" placeholder="6文字以上">
+            </div>
+            <div class="file-actions">
+              <button id="syncLogin" class="primary" type="button">ログイン</button>
+              <button id="syncRegister" class="ghost" type="button">新規登録</button>
+              <button id="syncLogout" class="ghost" type="button">ログアウト</button>
+            </div>
+          </div>
+          <div class="section-head compact-head">
+            <span id="syncAccount" class="status-pill">未ログイン</span>
+            <div class="file-actions">
+              <button id="cloudSyncSave" class="primary" type="button">クラウドへ保存</button>
+              <button id="cloudSyncLoad" class="ghost" type="button">クラウドから読込</button>
+            </div>
+          </div>
+          <details class="backup-sync">
+            <summary>ファイルでバックアップ</summary>
+            <div class="file-actions">
+              <button id="exportSyncFile" class="ghost" type="button">JSONを書き出す</button>
+              <label class="file-button ghost-file">
+                <input id="importSyncFile" type="file" accept=".json,application/json">
+                JSONを読み込む
+              </label>
+            </div>
+          </details>
+          <span id="syncStatus" class="ai-status" role="status"></span>
+        </section>
+
         <section class="charts-panel" aria-labelledby="chartsTitle">
           <div class="section-head">
             <h2 id="chartsTitle">行動グラフ</h2>
@@ -308,12 +401,17 @@
         <div class="task-timer">
           <span class="timer-time">0:00</span>
           <button type="button" class="timer-button">開始</button>
+          <label class="manual-time">
+            <span>手入力</span>
+            <input class="manual-time-input" type="number" min="0" step="1" inputmode="numeric" aria-label="作業時間を分で入力">
+            <span>分</span>
+          </label>
         </div>
         <button type="button" class="icon-button" aria-label="削除">×</button>
       </li>
     </template>
 
-    <script src="cloud-config.js?v=20260716-6"></script>
-    <script src="app.js?v=20260716-6"></script>
+    <script src="cloud-config.js?v=20260717-web-cle19"></script>
+    <script src="app.js?v=20260717-web-cle19"></script>
   </body>
 </html>
