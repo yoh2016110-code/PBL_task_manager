@@ -1,4 +1,4 @@
-const cacheName = "goal-task-journal-v24-ics-fix";
+const cacheName = "goal-task-journal-v25-cle-link-help";
 const appFiles = [
   "./",
   "./index.html",

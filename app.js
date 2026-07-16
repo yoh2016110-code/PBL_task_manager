@@ -782,6 +782,10 @@ async function fetchCleCalendarText(calendarUrl) {
     throw new Error("CLEのカレンダー共有リンクを入力してください。");
   }
   const normalizedUrl = url.replace(/^webcal:/i, "https:");
+  const looksLikeCalendarLink = /^webcal:\/\//i.test(url) || /\.ics(?:[?#].*)?$/i.test(normalizedUrl) || /calendar|ical|ics|feed/i.test(normalizedUrl);
+  if (!looksLikeCalendarLink) {
+    throw new Error("通常のCLEページURLでは読み込めません。CLEの「カレンダー共有リンク」または.icsリンクを貼ってください。");
+  }
   const proxyUrl = getAiProxyBaseUrl();
   if (!proxyUrl) {
     throw new Error("CLEカレンダー取得にはCloudflare Worker URLの設定が必要です。cloud-config.jsのGTJ_AI_PROXY_URLを設定してください。");
@@ -802,8 +806,19 @@ async function fetchCleCalendarText(calendarUrl) {
       throw new Error("Cloudflare Workerに接続できませんでした。Worker URLとデプロイ状態を確認してください。");
     }
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "カレンダーを取得できませんでした。");
-    return data.text || "";
+    if (!response.ok) {
+      if (response.status === 404) throw new Error("Cloudflare Workerに/api/fetch-icsがありません。Worker側のコードを最新版に更新してください。");
+      throw new Error(data.error || "カレンダーを取得できませんでした。");
+    }
+    const text = String(data.text || "");
+    if (!text.trim()) throw new Error("取得したカレンダーが空でした。CLEの共有リンクが正しいか確認してください。");
+    if (/^\s*<!doctype html|^\s*<html[\s>]/i.test(text)) {
+      throw new Error("CLEのログイン画面または通常ページが返ってきました。課題用のカレンダー共有リンクを使ってください。");
+    }
+    if (!/BEGIN:VCALENDAR/i.test(text)) {
+      throw new Error("取得した内容が.ics形式ではありません。CLEのカレンダー共有リンクか確認してください。");
+    }
+    return text;
   }
 }
 
@@ -812,6 +827,9 @@ async function refreshCleCalendar() {
   setCleStatus("CLEカレンダーを取得中...");
   const text = await fetchCleCalendarText(url);
   const assignments = parseCleAssignments(text, "cle-calendar.ics");
+  if (!assignments.length) {
+    throw new Error("CLE課題を見つけられませんでした。通常の予定カレンダーではなく、課題期限が入ったCLEカレンダーを指定してください。");
+  }
   const result = importCleAssignments(assignments);
   const withCourse = assignments.filter((assignment) => assignment.course).length;
   state.cleCalendarUrl = url;
@@ -2207,6 +2225,9 @@ els.cleFile?.addEventListener("change", async () => {
   try {
     const text = await file.text();
     const assignments = parseCleAssignments(text, file.name);
+    if (!assignments.length) {
+      throw new Error("このファイルからCLE課題を見つけられませんでした。通常の予定.icsは下の「カレンダー予定」で読み込んでください。");
+    }
     const result = importCleAssignments(assignments);
     const withCourse = assignments.filter((assignment) => assignment.course).length;
     setCleStatus(`${result.added}件を追加、${result.updated}件の科目名を更新しました。科目名あり: ${withCourse}件`);
@@ -2223,6 +2244,9 @@ els.clePaste?.addEventListener("click", async () => {
     const text = await navigator.clipboard.readText();
     if (!text.trim()) throw new Error("クリップボードが空です。CLEの課題一覧をコピーしてから押してください。");
     const assignments = parseCleAssignments(text, "cle-copy.txt");
+    if (!assignments.length) {
+      throw new Error("貼り付け内容から課題期限を見つけられませんでした。課題名と期限が一緒に見える範囲をコピーしてください。");
+    }
     const result = importCleAssignments(assignments);
     const withCourse = assignments.filter((assignment) => assignment.course).length;
     setCleStatus(`${result.added}件を追加、${result.updated}件の科目名を更新しました。科目名あり: ${withCourse}件`);
