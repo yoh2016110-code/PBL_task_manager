@@ -94,6 +94,13 @@ button {
   text-transform: uppercase;
 }
 
+.app-version {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 h1,
 h2 {
   margin: 0;
@@ -110,20 +117,39 @@ h2 {
 }
 
 .goal-panel,
-.ai-panel,
+.monthly-panel,
 .calendar-panel,
+.ai-panel,
 .workbench,
 .health-panel,
 .screen-panel,
 .review-panel,
 .charts-panel,
-.history-panel {
+.history-panel,
+.sync-panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
   margin-top: 16px;
   padding: 18px;
+}
+
+.sync-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.sync-panel h2 {
+  font-size: 1rem;
+}
+
+.sync-login {
+  display: grid;
+  grid-template-columns: minmax(160px, 240px) auto;
+  gap: 8px;
 }
 
 .section-head {
@@ -210,6 +236,22 @@ textarea:focus {
   padding: 0;
 }
 
+.cle-import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 360px) auto auto auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.cle-import h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
 .goal-list:empty::before {
   content: "登録中の目標はありません";
   display: grid;
@@ -218,6 +260,207 @@ textarea:focus {
   border: 1px dashed var(--line);
   border-radius: 8px;
   color: var(--muted);
+}
+
+.goal-item.completed {
+  border-color: #9bd8d0;
+  background: #f0fbf8;
+}
+
+.goal-item.completed .goal-main strong {
+  color: var(--accent-strong);
+}
+
+.month-controls {
+  display: grid;
+  grid-template-columns: 42px minmax(116px, auto) 42px;
+  align-items: center;
+  gap: 8px;
+}
+
+.month-controls strong {
+  min-width: 116px;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.monthly-board {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.weekday-row,
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.weekday-row {
+  background: #f1f5f4;
+  border-bottom: 1px solid var(--line);
+}
+
+.weekday-row span {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.month-day {
+  min-width: 0;
+  min-height: 98px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 6px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  padding: 8px;
+  text-align: left;
+}
+
+.month-day:nth-child(7n) {
+  border-right: 0;
+}
+
+.month-day.outside {
+  background: #f7f8fa;
+}
+
+.month-day.today .day-number {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.month-day.selected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.day-number {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.day-marks {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.day-marks em {
+  min-width: 0;
+  display: block;
+  border-radius: 6px;
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow: hidden;
+  padding: 4px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deadline-mark {
+  background: #fff1d6;
+  color: #744210;
+}
+
+.deadline-mark.completed {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.event-mark {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.more-mark {
+  background: #eef0f3;
+  color: var(--muted);
+}
+
+.day-agenda {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.day-agenda-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.day-agenda-head span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.agenda-list {
+  display: grid;
+  gap: 8px;
+}
+
+.agenda-item {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.agenda-item.deadline {
+  border-left-color: var(--gold);
+}
+
+.agenda-item.deadline.completed {
+  border-left-color: var(--accent);
+  background: #f0fbf8;
+}
+
+.agenda-item.deadline.completed span,
+.agenda-item.deadline.completed strong {
+  color: var(--accent-strong);
+}
+
+.agenda-item span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.agenda-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.agenda-item em {
+  grid-column: 2;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
 }
 
 .goal-item {
@@ -369,25 +612,9 @@ textarea:focus {
 
 .task-timer {
   display: grid;
-  grid-template-columns: auto auto auto;
+  grid-template-columns: auto auto;
   align-items: center;
   gap: 6px;
-}
-
-.manual-time {
-  display: grid;
-  grid-template-columns: auto 58px auto;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.manual-time-input {
-  min-height: 34px;
-  padding: 6px 8px;
-  text-align: right;
 }
 
 .timer-time {
@@ -575,6 +802,40 @@ textarea:focus {
   pointer-events: none;
 }
 
+.calendar-list {
+  display: grid;
+  gap: 8px;
+}
+
+.calendar-event {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.calendar-event span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.calendar-event strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.calendar-event em {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
 .health-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -610,39 +871,6 @@ textarea:focus {
   display: block;
   margin-top: 5px;
   font-size: 1.15rem;
-}
-
-.calendar-list {
-  display: grid;
-  gap: 8px;
-}
-
-.calendar-event {
-  display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
-  gap: 8px 12px;
-  align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-
-.calendar-event span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 750;
-}
-
-.calendar-event strong {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.calendar-event em {
-  grid-column: 2;
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-style: normal;
 }
 
 .inline-chart-grid {
@@ -769,11 +997,13 @@ textarea:focus {
   .inline-chart-grid,
   .charts-grid,
   .entry-details,
-  .calendar-event {
+  .calendar-event,
+  .agenda-item {
     grid-template-columns: 1fr;
   }
 
-  .calendar-event em {
+  .calendar-event em,
+  .agenda-item em {
     grid-column: 1;
   }
 
@@ -813,13 +1043,16 @@ textarea:focus {
   }
 
   .goal-panel,
+  .monthly-panel,
+  .calendar-panel,
   .ai-panel,
   .workbench,
   .health-panel,
   .screen-panel,
   .review-panel,
   .charts-panel,
-  .history-panel {
+  .history-panel,
+  .sync-panel {
     border-left: 0;
     border-right: 0;
     border-radius: 0;
@@ -827,6 +1060,42 @@ textarea:focus {
     margin-left: -10px;
     margin-right: -10px;
     padding: 14px 10px;
+  }
+
+  .sync-panel,
+  .sync-login,
+  .cle-import {
+    grid-template-columns: 1fr;
+  }
+
+  .month-controls {
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    width: 100%;
+  }
+
+  .month-day {
+    min-height: 72px;
+    gap: 4px;
+    padding: 5px;
+  }
+
+  .day-number {
+    width: 24px;
+    height: 24px;
+    font-size: 0.82rem;
+  }
+
+  .day-marks {
+    gap: 3px;
+  }
+
+  .day-marks em {
+    font-size: 0.66rem;
+    padding: 3px 4px;
+  }
+
+  .day-agenda {
+    padding: 10px;
   }
 
   .date-box input,
@@ -893,11 +1162,6 @@ textarea:focus {
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1fr) auto;
     padding-top: 4px;
-  }
-
-  .manual-time {
-    grid-column: 1 / -1;
-    grid-template-columns: auto minmax(72px, 1fr) auto;
   }
 
   .timer-time {
