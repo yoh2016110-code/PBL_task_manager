@@ -508,7 +508,18 @@ function setCleStatus(message, isError = false) {
 }
 
 function unfoldIcs(text) {
-  return text.replace(/\r?\n[ \t]/g, "").split(/\r?\n/);
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .reduce((lines, line) => {
+      if (/^[ \t]/.test(line) && lines.length) {
+        lines[lines.length - 1] += line.slice(1);
+      } else {
+        lines.push(line.trimEnd());
+      }
+      return lines;
+    }, []);
 }
 
 function decodeIcsValue(value = "") {
@@ -891,7 +902,8 @@ function getCalendarColorStyle(color) {
 
 function parseGeneralIcsDate(value) {
   const text = String(value || "").trim();
-  const dateOnly = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+  const normalized = text.includes(":") ? text.slice(text.lastIndexOf(":") + 1).trim() : text;
+  const dateOnly = normalized.match(/^(\d{4})(\d{2})(\d{2})$/);
   if (dateOnly) {
     return {
       iso: `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}`,
@@ -900,7 +912,7 @@ function parseGeneralIcsDate(value) {
     };
   }
 
-  const match = text.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/);
+  const match = normalized.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/);
   if (!match) return { iso: "", date: "", allDay: false };
   const [, year, month, day, hour, minute, second = "00", utc] = match;
   if (!utc) {
@@ -913,6 +925,62 @@ function parseGeneralIcsDate(value) {
     date: formatLocalDate(valueDate),
     allDay: false,
   };
+}
+
+function addCalendarDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function addCalendarMonths(date, months) {
+  const next = new Date(date);
+  const day = next.getDate();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, lastDay));
+  return next;
+}
+
+function parseGeneralRRule(value) {
+  return String(value || "")
+    .split(";")
+    .reduce((rule, part) => {
+      const [key, val] = part.split("=");
+      if (key && val) rule[key] = val;
+      return rule;
+    }, {});
+}
+
+function getGeneralRecurrenceDates(start, ruleText) {
+  if (!ruleText || !start.date) return [start.date];
+  const rule = parseGeneralRRule(ruleText);
+  const frequency = rule.FREQ;
+  const interval = Math.max(1, Number(rule.INTERVAL || 1));
+  const countLimit = Math.min(Math.max(Number(rule.COUNT || 0), 0), 500);
+  const untilDate = dateFromIsoDate(parseGeneralIcsDate(rule.UNTIL || "").date);
+  const base = dateFromIsoDate(start.date);
+  if (!base) return [start.date];
+
+  const dates = [];
+  let cursor = new Date(base);
+  let guard = 0;
+  const defaultEnd = addCalendarMonths(base, 18);
+  while (guard < 500) {
+    guard += 1;
+    if (untilDate && cursor > untilDate) break;
+    if (!untilDate && !countLimit && cursor > defaultEnd) break;
+    dates.push(formatLocalDate(cursor));
+    if (countLimit && dates.length >= countLimit) break;
+
+    if (frequency === "DAILY") cursor = addCalendarDays(cursor, interval);
+    else if (frequency === "WEEKLY") cursor = addCalendarDays(cursor, interval * 7);
+    else if (frequency === "MONTHLY") cursor = addCalendarMonths(cursor, interval);
+    else if (frequency === "YEARLY") cursor = addCalendarMonths(cursor, interval * 12);
+    else break;
+  }
+  return dates.length ? dates : [start.date];
 }
 
 function formatCalendarTime(value) {
@@ -950,11 +1018,12 @@ function parseGeneralCalendarIcs(text) {
       }
     }
 
-    if (line === "BEGIN:VEVENT") {
+    const normalizedLine = String(line || "").trim();
+    if (normalizedLine === "BEGIN:VEVENT") {
       current = {};
       return;
     }
-    if (line === "END:VEVENT") {
+    if (normalizedLine === "END:VEVENT") {
       if (!current) return;
       const start = parseGeneralIcsDate(current.DTSTART || "");
       const end = parseGeneralIcsDate(current.DTEND || "");
@@ -967,7 +1036,9 @@ function parseGeneralCalendarIcs(text) {
           allDay: start.allDay,
           color: normalizeIcsColor(current.COLOR || current["X-APPLE-CALENDAR-COLOR"] || current["X-WR-CALCOLOR"] || calendarColor),
         };
-        byDate[start.date] = [...(byDate[start.date] || []), event];
+        getGeneralRecurrenceDates(start, current.RRULE || "").forEach((date) => {
+          byDate[date] = [...(byDate[date] || []), event];
+        });
       }
       current = null;
       return;
@@ -976,7 +1047,8 @@ function parseGeneralCalendarIcs(text) {
 
     const separator = line.indexOf(":");
     if (separator < 0) return;
-    const rawKey = line.slice(0, separator).split(";")[0].toUpperCase();
+    const rawName = line.slice(0, separator);
+    const rawKey = rawName.split(";")[0].toUpperCase();
     current[rawKey] = line.slice(separator + 1);
   });
 
