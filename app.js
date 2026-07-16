@@ -158,7 +158,11 @@ function saveState() {
 
 function loadAuthSession() {
   try {
-    return JSON.parse(localStorage.getItem(authStorageKey) || "null");
+    const loaded = JSON.parse(localStorage.getItem(authStorageKey) || "null");
+    if (loaded?.syncId && loaded?.passphrase) return loaded;
+    const session = normalizeAuthSession(loaded);
+    if (!session) localStorage.removeItem(authStorageKey);
+    return session;
   } catch {
     return null;
   }
@@ -176,11 +180,29 @@ function saveAuthSession(session) {
 
 function renderSyncAccount() {
   if (!els.syncAccount) return;
-  const email = authSession?.user?.email || authSession?.email || "";
-  els.syncAccount.textContent = email ? `ログイン中: ${email}` : "未ログイン";
-  if (els.syncEmail && email && document.activeElement !== els.syncEmail) {
-    els.syncEmail.value = email;
+  const syncId = authSession?.syncId || "";
+  els.syncAccount.textContent = syncId ? `同期設定中: ${syncId}` : "未設定";
+  if (els.syncEmail && syncId && document.activeElement !== els.syncEmail) {
+    els.syncEmail.value = syncId;
   }
+}
+
+function normalizeAuthSession(result) {
+  if (!result || typeof result !== "object") return null;
+  const accessToken = result?.access_token || result?.session?.access_token || "";
+  const refreshToken = result?.refresh_token || result?.session?.refresh_token || "";
+  const user = result?.user || result?.session?.user || null;
+  if (!accessToken) return null;
+  return {
+    ...result,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    user,
+  };
+}
+
+function getStoredSyncToken() {
+  return authSession?.access_token || authSession?.session?.access_token || "";
 }
 
 function setSyncStatus(message, isError = false) {
@@ -207,42 +229,43 @@ async function postCloudApi(path, body, token = "") {
 }
 
 async function loginForSync(register = false) {
-  const email = els.syncEmail.value.trim();
-  const password = els.syncPassword.value;
-  if (!email || !password) throw new Error("メールアドレスとパスワードを入力してください");
-  if (password.length < 6) throw new Error("パスワードは6文字以上にしてください");
-  const result = await postCloudApi(register ? "/api/auth-signup" : "/api/auth-login", { email, password });
-  if (!result.access_token) {
-    if (register) {
-      els.syncPassword.value = "";
-      setSyncStatus("登録しました。確認メールが届いた場合は、確認後にログインしてください。");
-      return;
-    }
-    throw new Error("ログイン情報を読み取れませんでした");
-  }
-  saveAuthSession(result);
+  const syncId = els.syncEmail.value.trim();
+  const passphrase = els.syncPassword.value;
+  if (!syncId || !passphrase) throw new Error("同期IDと合言葉を入力してください");
+  if (syncId.length < 3) throw new Error("同期IDは3文字以上にしてください");
+  if (passphrase.length < 4) throw new Error("合言葉は4文字以上にしてください");
+  saveAuthSession({ syncId, passphrase });
   els.syncPassword.value = "";
-  setSyncStatus(register ? "登録してログインしました" : "ログインしました");
+  setSyncStatus(register ? "入力内容を確認しました。同じ同期IDと合言葉をスマホでも使ってください。" : "同期設定を保存しました");
 }
 
-function getSyncToken() {
-  const token = authSession?.access_token || "";
-  if (!token) throw new Error("先にログインしてください");
-  return token;
+function getSyncCredentials() {
+  const syncId = authSession?.syncId || els.syncEmail?.value.trim() || "";
+  const passphrase = authSession?.passphrase || els.syncPassword?.value || "";
+  if (!syncId || !passphrase) throw new Error("先に同期IDと合言葉を設定してください");
+  return { syncId, passphrase };
 }
 
 async function saveCloudState() {
-  const result = await postCloudApi("/api/sync-save", { state }, getSyncToken());
-  setSyncStatus(`クラウドへ保存しました${result.updatedAt ? `（${new Date(result.updatedAt).toLocaleString("ja-JP")}）` : ""}`);
+  try {
+    const result = await postCloudApi("/api/passcode-sync-save", { ...getSyncCredentials(), state });
+    setSyncStatus(`クラウドへ保存しました${result.updatedAt ? `（${new Date(result.updatedAt).toLocaleString("ja-JP")}）` : ""}`);
+  } catch (error) {
+    throw error;
+  }
 }
 
 async function loadCloudState() {
-  const result = await postCloudApi("/api/sync-load", {}, getSyncToken());
-  if (!result.state) throw new Error("クラウドに保存されたデータがまだありません");
-  state = normalizeImportedState(result.state);
-  saveState();
-  render();
-  setSyncStatus(`クラウドから読み込みました${result.updatedAt ? `（${new Date(result.updatedAt).toLocaleString("ja-JP")}）` : ""}`);
+  try {
+    const result = await postCloudApi("/api/passcode-sync-load", getSyncCredentials());
+    if (!result.state) throw new Error("クラウドに保存されたデータがまだありません");
+    state = normalizeImportedState(result.state);
+    saveState();
+    render();
+    setSyncStatus(`クラウドから読み込みました${result.updatedAt ? `（${new Date(result.updatedAt).toLocaleString("ja-JP")}）` : ""}`);
+  } catch (error) {
+    throw error;
+  }
 }
 
 function createSyncPayload() {
@@ -379,28 +402,32 @@ function getGoalDeadlinesForDate(date) {
   return (state.goals || []).filter((goal) => goal.deadline === date);
 }
 
-function getDeadlineStatusClass(goal) {
+function getSelectedDate() {
+  return els.entryDate?.value || todayString;
+}
+
+function getDeadlineStatusClass(goal, baseDateText = getSelectedDate()) {
   if (goal?.completedAt) return "deadline-completed";
   const deadline = dateFromIsoDate(goal?.deadline);
-  const todayDate = dateFromIsoDate(todayString);
-  if (!deadline || !todayDate) return "deadline-normal";
-  const daysLeft = Math.round((deadline.getTime() - todayDate.getTime()) / 86400000);
+  const baseDate = dateFromIsoDate(baseDateText);
+  if (!deadline || !baseDate) return "deadline-normal";
+  const daysLeft = Math.round((deadline.getTime() - baseDate.getTime()) / 86400000);
   if (daysLeft < 0) return "deadline-overdue";
   if (daysLeft <= 1) return "deadline-urgent";
   if (daysLeft <= 7) return "deadline-week";
   return "deadline-normal";
 }
 
-function getDeadlineDaysLeft(deadlineText) {
+function getDeadlineDaysLeft(deadlineText, baseDateText = getSelectedDate()) {
   const deadline = dateFromIsoDate(deadlineText);
-  const todayDate = dateFromIsoDate(todayString);
-  if (!deadline || !todayDate) return null;
-  return Math.round((deadline.getTime() - todayDate.getTime()) / 86400000);
+  const baseDate = dateFromIsoDate(baseDateText);
+  if (!deadline || !baseDate) return null;
+  return Math.round((deadline.getTime() - baseDate.getTime()) / 86400000);
 }
 
-function formatDeadlineNotice(goal) {
+function formatDeadlineNotice(goal, baseDateText = getSelectedDate()) {
   if (goal.completedAt) return "達成済み";
-  const daysLeft = getDeadlineDaysLeft(goal.deadline);
+  const daysLeft = getDeadlineDaysLeft(goal.deadline, baseDateText);
   if (daysLeft === null) return "期限未設定";
   if (daysLeft < 0) return `${Math.abs(daysLeft)}日超過`;
   if (daysLeft === 0) return "今日が期限";
@@ -408,10 +435,10 @@ function formatDeadlineNotice(goal) {
   return `あと${daysLeft}日`;
 }
 
-function getUrgentGoals() {
+function getUrgentGoals(baseDateText = getSelectedDate()) {
   return (state.goals || [])
     .filter((goal) => !goal.completedAt)
-    .map((goal) => ({ goal, daysLeft: getDeadlineDaysLeft(goal.deadline) }))
+    .map((goal) => ({ goal, daysLeft: getDeadlineDaysLeft(goal.deadline, baseDateText) }))
     .filter((item) => item.daysLeft !== null && item.daysLeft <= 7)
     .sort((a, b) => a.daysLeft - b.daysLeft)
     .map((item) => item.goal);
@@ -421,7 +448,7 @@ function getAgendaItemsForDate(date) {
   const goals = currentCalendarFilter === "events" ? [] : getGoalDeadlinesForDate(date).map((goal) => ({
     type: "goal",
     completed: Boolean(goal.completedAt),
-    statusClass: getDeadlineStatusClass(goal),
+    statusClass: getDeadlineStatusClass(goal, date),
     time: goal.completedAt ? "達成済" : "期限",
     title: goal.course ? `${goal.course}: ${goal.title}` : goal.title,
     location: goal.url ? "リンクあり" : goal.completedAt ? `達成日 ${goal.completedAt.slice(0, 10)}` : "",
@@ -538,7 +565,8 @@ function renderTasks(tasks) {
 
 function renderUrgentDeadlines() {
   if (!els.urgentDeadlineList || !els.urgentStatus) return;
-  const urgentGoals = getUrgentGoals();
+  const baseDate = getSelectedDate();
+  const urgentGoals = getUrgentGoals(baseDate);
   els.urgentStatus.textContent = urgentGoals.length ? `${urgentGoals.length}件` : "なし";
   els.urgentDeadlineList.innerHTML = "";
   if (!urgentGoals.length) {
@@ -549,9 +577,9 @@ function renderUrgentDeadlines() {
   urgentGoals.slice(0, 6).forEach((goal) => {
     const item = document.createElement("button");
     item.type = "button";
-    item.className = `urgent-item ${getDeadlineStatusClass(goal)}`;
+    item.className = `urgent-item ${getDeadlineStatusClass(goal, baseDate)}`;
     item.innerHTML = `
-      <span>${escapeHtml(formatDeadlineNotice(goal))}</span>
+      <span>${escapeHtml(formatDeadlineNotice(goal, baseDate))}</span>
       <strong>${escapeHtml(goal.course ? `${goal.course}: ${goal.title}` : goal.title)}</strong>
       <em>${escapeHtml(goal.deadline || "未設定")}</em>
     `;
@@ -636,7 +664,7 @@ function renderMonthlyCalendar() {
       ...goals.map((goal) => ({
         type: "goal",
         completed: Boolean(goal.completedAt),
-        statusClass: getDeadlineStatusClass(goal),
+        statusClass: getDeadlineStatusClass(goal, cellDate),
         text: goal.course ? `${goal.course}: ${goal.title}` : goal.title,
         url: goal.url || "",
       })),
@@ -2717,7 +2745,7 @@ els.syncRegister?.addEventListener("click", async () => {
 els.syncLogout?.addEventListener("click", () => {
   saveAuthSession(null);
   if (els.syncPassword) els.syncPassword.value = "";
-  setSyncStatus("ログアウトしました");
+  setSyncStatus("同期設定を解除しました");
 });
 
 els.cloudSyncSave?.addEventListener("click", async () => {

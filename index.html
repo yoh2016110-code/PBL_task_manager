@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#0f766e">
     <title>Goal Task Journal</title>
-    <link rel="manifest" href="manifest.webmanifest?v=20260717-web-cle19">
+    <link rel="manifest" href="manifest.webmanifest?v=20260717-web-cle25">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icon.svg">
-    <link rel="stylesheet" href="styles.css?v=20260717-web-cle19">
+    <link rel="stylesheet" href="styles.css?v=20260717-web-cle25">
   </head>
   <body>
     <main class="app">
@@ -19,7 +19,7 @@
         <div>
           <p class="eyebrow">Goal Task Journal</p>
           <h1>目標と今日のタスク</h1>
-          <p class="app-version">Web版 v2026-07-17-CLE19</p>
+          <p class="app-version">Web版 v2026-07-17-CLE25</p>
         </div>
         <div class="date-box">
           <label for="entryDate">日付</label>
@@ -320,22 +320,22 @@
           <div class="section-head">
             <div>
               <h2 id="syncTitle">スマホ同期</h2>
-              <p class="panel-note">MacとスマホWeb版で同じメールアドレスとパスワードを使うと、同じデータを共有できます。</p>
+              <p class="panel-note">MacとスマホWeb版で同じ同期IDと合言葉を入力すると、同じデータを共有できます。</p>
             </div>
           </div>
           <div class="sync-form">
             <div class="field">
-              <label for="syncEmail">メールアドレス</label>
-              <input id="syncEmail" type="email" autocomplete="email" placeholder="name@example.com">
+              <label for="syncEmail">同期ID</label>
+              <input id="syncEmail" type="text" autocomplete="username" placeholder="例: yoh-task">
             </div>
             <div class="field">
-              <label for="syncPassword">パスワード</label>
-              <input id="syncPassword" type="password" autocomplete="current-password" placeholder="6文字以上">
+              <label for="syncPassword">合言葉</label>
+              <input id="syncPassword" type="password" autocomplete="current-password" placeholder="4文字以上">
             </div>
             <div class="file-actions">
-              <button id="syncLogin" class="primary" type="button">ログイン</button>
-              <button id="syncRegister" class="ghost" type="button">新規登録</button>
-              <button id="syncLogout" class="ghost" type="button">ログアウト</button>
+              <button id="syncLogin" class="primary" type="button">同期設定</button>
+              <button id="syncRegister" class="ghost" type="button">入力確認</button>
+              <button id="syncLogout" class="ghost" type="button">設定解除</button>
             </div>
           </div>
           <div class="section-head compact-head">
@@ -411,7 +411,7 @@
       </li>
     </template>
 
-    <script src="cloud-config.js?v=20260717-web-cle19"></script>
-    <script src="app.js?v=20260717-web-cle19"></script>
+    <script src="cloud-config.js?v=20260717-web-cle25"></script>
+    <script src="app.js?v=20260717-web-cle25"></script>
   </body>
 </html>

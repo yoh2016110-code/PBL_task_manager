@@ -1,7 +1,7 @@
 {
   "name": "Goal Task Journal",
   "short_name": "Task Journal",
-  "description": "目標、日々のタスク、重要度、S/A/B/C/F評価を管理するWebアプリ",
+  "description": "目標、日々のタスク、重要度、S/A/B/C/F評価を管理するアプリ",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
