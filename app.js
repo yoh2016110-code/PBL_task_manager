@@ -983,6 +983,19 @@ function getGeneralRecurrenceDates(start, ruleText) {
   return dates.length ? dates : [start.date];
 }
 
+function getGeneralExDates(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => parseGeneralIcsDate(item).date)
+    .filter(Boolean);
+}
+
+function withCalendarEventDate(iso, date) {
+  if (!iso || !date) return iso || "";
+  if (!String(iso).includes("T")) return date;
+  return `${date}${String(iso).slice(String(iso).indexOf("T"))}`;
+}
+
 function formatCalendarTime(value) {
   if (!value) return "--:--";
   const localTime = String(value).match(/T(\d{2}):(\d{2})/);
@@ -1028,7 +1041,7 @@ function parseGeneralCalendarIcs(text) {
       const start = parseGeneralIcsDate(current.DTSTART || "");
       const end = parseGeneralIcsDate(current.DTEND || "");
       if (start.date) {
-        const event = {
+        const baseEvent = {
           title: decodeIcsValue(current.SUMMARY || "予定"),
           location: decodeIcsValue(current.LOCATION || ""),
           start: start.iso,
@@ -1036,7 +1049,14 @@ function parseGeneralCalendarIcs(text) {
           allDay: start.allDay,
           color: normalizeIcsColor(current.COLOR || current["X-APPLE-CALENDAR-COLOR"] || current["X-WR-CALCOLOR"] || calendarColor),
         };
+        const excludedDates = new Set(getGeneralExDates(current.EXDATE || ""));
         getGeneralRecurrenceDates(start, current.RRULE || "").forEach((date) => {
+          if (excludedDates.has(date)) return;
+          const event = {
+            ...baseEvent,
+            start: withCalendarEventDate(baseEvent.start, date),
+            end: withCalendarEventDate(baseEvent.end, end.date && end.date !== start.date ? end.date : date),
+          };
           byDate[date] = [...(byDate[date] || []), event];
         });
       }
@@ -1049,7 +1069,8 @@ function parseGeneralCalendarIcs(text) {
     if (separator < 0) return;
     const rawName = line.slice(0, separator);
     const rawKey = rawName.split(";")[0].toUpperCase();
-    current[rawKey] = line.slice(separator + 1);
+    if (rawKey === "EXDATE" && current[rawKey]) current[rawKey] += `,${line.slice(separator + 1)}`;
+    else current[rawKey] = line.slice(separator + 1);
   });
 
   return byDate;

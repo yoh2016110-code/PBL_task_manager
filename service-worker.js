@@ -1,4 +1,4 @@
-const cacheName = "goal-task-journal-v23-calendar-merge";
+const cacheName = "goal-task-journal-v24-ics-fix";
 const appFiles = [
   "./",
   "./index.html",
