@@ -8,10 +8,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#0f766e">
     <title>Goal Task Journal</title>
-    <link rel="manifest" href="manifest.webmanifest?v=20260717-web-cle32">
+    <link rel="manifest" href="manifest.webmanifest?v=20260718-web-cle37">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icon.svg">
-    <link rel="stylesheet" href="styles.css?v=20260717-web-cle32">
+    <link rel="stylesheet" href="styles.css?v=20260718-web-cle37">
   </head>
   <body>
     <main class="app">
@@ -19,7 +19,7 @@
         <div>
           <p class="eyebrow">Goal Task Journal</p>
           <h1>目標と今日のタスク</h1>
-          <p class="app-version">Web版 v2026-07-17-CLE32</p>
+          <p class="app-version">Web版 v2026-07-18-CLE37</p>
         </div>
         <div class="date-box">
           <label for="entryDate">日付</label>
@@ -362,11 +362,23 @@
           </div>
           <div class="charts-grid">
             <div class="chart-box">
-              <h3>歩数</h3>
+              <div class="chart-title-row">
+                <h3>歩数</h3>
+                <div class="chart-average-list">
+                  <span id="stepsAverageWeek" class="chart-average steps-average">7日平均 -</span>
+                  <span id="stepsAverageMonth" class="chart-average steps-average">30日平均 -</span>
+                </div>
+              </div>
               <canvas id="stepsChart" width="520" height="220"></canvas>
             </div>
             <div class="chart-box">
-              <h3>スクリーンタイム</h3>
+              <div class="chart-title-row">
+                <h3>スクリーンタイム</h3>
+                <div class="chart-average-list">
+                  <span id="screenAverageWeek" class="chart-average">7日平均 -</span>
+                  <span id="screenAverageMonth" class="chart-average">30日平均 -</span>
+                </div>
+              </div>
               <canvas id="screenChart" width="520" height="220"></canvas>
             </div>
           </div>
@@ -401,7 +413,7 @@
       </li>
     </template>
 
-    <script src="cloud-config.js?v=20260717-web-cle32"></script>
-    <script src="app.js?v=20260717-web-cle32"></script>
+    <script src="cloud-config.js?v=20260718-web-cle37"></script>
+    <script src="app.js?v=20260718-web-cle37"></script>
   </body>
 </html>

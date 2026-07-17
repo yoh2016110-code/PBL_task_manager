@@ -1156,6 +1156,41 @@ textarea:focus {
   font-size: 0.95rem;
 }
 
+.chart-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.chart-title-row h3 {
+  margin: 0;
+}
+
+.chart-average-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.chart-average {
+  border-radius: 999px;
+  background: #f3e8ff;
+  color: #5b21b6;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+.steps-average {
+  background: #dcfce7;
+  color: #166534;
+}
+
 .chart-box canvas {
   display: block;
   inline-size: 100%;

@@ -44,7 +44,11 @@ const els = {
   calendarGoalsButton: document.querySelector("#calendarGoalsButton"),
   calendarEventsButton: document.querySelector("#calendarEventsButton"),
   stepsChart: document.querySelector("#stepsChart"),
+  stepsAverageWeek: document.querySelector("#stepsAverageWeek"),
+  stepsAverageMonth: document.querySelector("#stepsAverageMonth"),
   screenChart: document.querySelector("#screenChart"),
+  screenAverageWeek: document.querySelector("#screenAverageWeek"),
+  screenAverageMonth: document.querySelector("#screenAverageMonth"),
   goalForm: document.querySelector("#goalForm"),
   goalInput: document.querySelector("#goalInput"),
   goalDeadline: document.querySelector("#goalDeadline"),
@@ -1055,6 +1059,30 @@ function suggestGrade(tasks) {
   return "F";
 }
 
+function getGradeRuleDetails(tasks) {
+  const minimum = tasks.filter((task) => task.minimum);
+  const extra = tasks.filter((task) => !task.minimum);
+  const minimumDone = minimum.length > 0 && minimum.every((task) => task.done);
+  const extraDoneCount = extra.filter((task) => task.done).length;
+  const doneWeight = tasks
+    .filter((task) => task.done)
+    .reduce((sum, task) => sum + task.weight, 0);
+  return {
+    grade: suggestGrade(tasks),
+    minimumTaskCount: minimum.length,
+    minimumDone,
+    extraDoneCount,
+    earnedWeight: doneWeight,
+    ruleOrder: [
+      "必要最低限タスクが未達成ならF",
+      "必要最低限タスクがすべて達成できていればC",
+      "Cに加えてプラスアルファのタスクが1つ以上達成できていればB",
+      "B/Cの条件に加えて獲得重みが12以上ならA",
+      "B/Cの条件に加えて獲得重みが15以上ならS",
+    ],
+  };
+}
+
 function renderGradeButtons() {
   els.gradeButtons.querySelectorAll(".grade").forEach((button) => {
     const active = button.dataset.grade === currentGrade;
@@ -1155,7 +1183,7 @@ function drawBarChart(canvas, rows, options) {
     return;
   }
 
-  const maxValue = Math.max(...rows.map((row) => row.value), options.goal || 0, 1);
+  const maxValue = Math.max(...rows.map((row) => row.value), options.goal || 0, options.average || 0, 1);
   const gap = 8;
   const barWidth = Math.max(8, (chartWidth - gap * (rows.length - 1)) / rows.length);
 
@@ -1168,6 +1196,21 @@ function drawBarChart(canvas, rows, options) {
     ctx.lineTo(padding.left + chartWidth, goalY);
     ctx.stroke();
     ctx.setLineDash([]);
+  }
+
+  if (options.average) {
+    const averageY = padding.top + chartHeight - (options.average / maxValue) * chartHeight;
+    ctx.strokeStyle = options.averageColor || options.color || "#7c3aed";
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, averageY);
+    ctx.lineTo(padding.left + chartWidth, averageY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = options.averageColor || options.color || "#5b21b6";
+    ctx.font = "11px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("平均", padding.left + 4, Math.max(padding.top + 12, averageY - 4));
   }
 
   rows.forEach((row, index) => {
@@ -1188,6 +1231,50 @@ function drawBarChart(canvas, rows, options) {
   ctx.textAlign = "right";
   ctx.fillText(options.format(maxValue), padding.left - 6, padding.top + 4);
   ctx.fillText("0", padding.left - 6, padding.top + chartHeight);
+}
+
+function formatMinutesHuman(minutes) {
+  const value = Math.max(0, Math.round(Number(minutes) || 0));
+  const hours = Math.floor(value / 60);
+  const rest = value % 60;
+  if (hours && rest) return `${hours}時間${rest}分`;
+  if (hours) return `${hours}時間`;
+  return `${rest}分`;
+}
+
+function getScreenAverageMinutes(days, baseDateText = todayString) {
+  const baseDate = dateFromIsoDate(baseDateText) || dateFromIsoDate(todayString);
+  if (!baseDate) return { average: 0, count: 0 };
+  const startDate = addDays(baseDate, -(days - 1));
+  const values = Object.entries(state.entries)
+    .filter(([date]) => {
+      const entryDate = dateFromIsoDate(date);
+      return entryDate && entryDate >= startDate && entryDate <= baseDate;
+    })
+    .map(([, entry]) => Number(entry.screenTime?.totalMinutes) || 0)
+    .filter((minutes) => minutes > 0);
+  return {
+    average: values.length ? values.reduce((sum, minutes) => sum + minutes, 0) / values.length : 0,
+    count: values.length,
+  };
+}
+
+function getStepsAverage(days, baseDateText = todayString) {
+  const baseDate = dateFromIsoDate(baseDateText) || dateFromIsoDate(todayString);
+  if (!baseDate) return { average: 0, count: 0 };
+  const startDate = addDays(baseDate, -(days - 1));
+  const dateSet = new Set([...Object.keys(state.entries || {}), ...Object.keys(state.healthByDate || {})]);
+  const values = [...dateSet]
+    .filter((date) => {
+      const entryDate = dateFromIsoDate(date);
+      return entryDate && entryDate >= startDate && entryDate <= baseDate;
+    })
+    .map((date) => Number(getHealthForDate(date)?.steps) || 0)
+    .filter((steps) => steps > 0);
+  return {
+    average: values.length ? values.reduce((sum, steps) => sum + steps, 0) / values.length : 0,
+    count: values.length,
+  };
 }
 
 function drawInlineBarChart(canvas, rows, options = {}) {
@@ -1259,23 +1346,55 @@ function renderCharts() {
   const chartEntries = getChartEntries();
   const rows = chartEntries.map(({ date, entry }) => {
     const health = getHealthForDate(date);
+    const screenMinutes = Number(entry.screenTime?.totalMinutes) || 0;
     return {
       date,
       label: date,
       steps: health?.steps || 0,
-      screenHours: (entry.screenTime?.totalMinutes || 0) / 60,
+      screenMinutes,
+      screenHours: screenMinutes / 60,
     };
   });
+  const stepsWeekAverage = getStepsAverage(7);
+  const stepsMonthAverage = getStepsAverage(30);
+  const screenWeekAverage = getScreenAverageMinutes(7);
+  const screenMonthAverage = getScreenAverageMinutes(30);
+  if (els.stepsAverageWeek) {
+    els.stepsAverageWeek.textContent = stepsWeekAverage.count
+      ? `7日平均 ${Math.round(stepsWeekAverage.average).toLocaleString()}歩`
+      : "7日平均 -";
+  }
+  if (els.stepsAverageMonth) {
+    els.stepsAverageMonth.textContent = stepsMonthAverage.count
+      ? `30日平均 ${Math.round(stepsMonthAverage.average).toLocaleString()}歩`
+      : "30日平均 -";
+  }
+  if (els.screenAverageWeek) {
+    els.screenAverageWeek.textContent = screenWeekAverage.count
+      ? `7日平均 ${formatMinutesHuman(screenWeekAverage.average)}`
+      : "7日平均 -";
+  }
+  if (els.screenAverageMonth) {
+    els.screenAverageMonth.textContent = screenMonthAverage.count
+      ? `30日平均 ${formatMinutesHuman(screenMonthAverage.average)}`
+      : "30日平均 -";
+  }
 
   drawBarChart(
     els.stepsChart,
     rows.map((row) => ({ label: row.label, value: row.steps })),
-    { color: "#0f766e", goal: 8000, format: (value) => `${Math.round(value).toLocaleString()}歩` }
+    {
+      color: "#0f766e",
+      goal: 8000,
+      average: stepsWeekAverage.average,
+      averageColor: "#0f766e",
+      format: (value) => `${Math.round(value).toLocaleString()}歩`,
+    }
   );
   drawBarChart(
     els.screenChart,
     rows.map((row) => ({ label: row.label, value: row.screenHours })),
-    { color: "#7c3aed", goal: 3, format: (value) => `${value.toFixed(1)}h` }
+    { color: "#7c3aed", goal: 3, average: screenWeekAverage.average / 60, format: (value) => `${value.toFixed(1)}h` }
   );
 }
 
@@ -2581,10 +2700,12 @@ els.evaluateDay.addEventListener("click", async () => {
   setAiGradeStatus("今日を評価中...");
   els.evaluateDay.disabled = true;
   try {
+    const gradeRule = getGradeRuleDetails(entry.tasks);
     const result = await postAi("/api/evaluate-day", {
       ...getAiPlanningPayload(),
       reflection: entry.reflection || "",
-      ruleSuggestedGrade: suggestGrade(entry.tasks),
+      ruleSuggestedGrade: gradeRule.grade,
+      gradeRule,
       tasks: entry.tasks,
       gradeDefinitions: gradeLabels,
     });
