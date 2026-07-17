@@ -351,7 +351,6 @@ function getProxyBaseUrl() {
 
 function getAiBaseUrl() {
   const proxyUrl = getProxyBaseUrl();
-  if (location.protocol === "file:") return "http://127.0.0.1:8787";
   if (proxyUrl) return proxyUrl;
   return "";
 }
@@ -385,6 +384,92 @@ function getActiveGoalText() {
   return (state.goals || [])
     .map((goal) => `${goal.course ? `[${goal.course}] ` : ""}${goal.title}（期限: ${goal.deadline || "未設定"}）`)
     .join("\n");
+}
+
+function summarizeGoalForAi(goal, baseDateText = getSelectedDate()) {
+  return {
+    id: goal.id || "",
+    title: goal.title || "",
+    course: goal.course || "",
+    deadline: goal.deadline || "",
+    daysLeft: getDeadlineDaysLeft(goal.deadline, baseDateText),
+    status: goal.completedAt ? "completed" : getDeadlineStatusClass(goal, baseDateText).replace("deadline-", ""),
+    completedAt: goal.completedAt || "",
+    url: goal.url || "",
+  };
+}
+
+function getGoalContextForAi(date = getSelectedDate()) {
+  pruneGoals();
+  const goals = (state.goals || []).map((goal) => summarizeGoalForAi(goal, date));
+  const incomplete = goals
+    .filter((goal) => goal.status !== "completed")
+    .sort((a, b) => {
+      const leftA = a.daysLeft === null ? 9999 : a.daysLeft;
+      const leftB = b.daysLeft === null ? 9999 : b.daysLeft;
+      return leftA - leftB || a.deadline.localeCompare(b.deadline) || a.title.localeCompare(b.title);
+    });
+  return {
+    all: goals,
+    incomplete,
+    urgent: incomplete.filter((goal) => goal.daysLeft !== null && goal.daysLeft <= 7),
+    dueToday: incomplete.filter((goal) => goal.daysLeft === 0),
+    completed: goals
+      .filter((goal) => goal.status === "completed")
+      .sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)))
+      .slice(0, 20),
+  };
+}
+
+function getTaskContextForAi(date = getSelectedDate()) {
+  const entry = getEntry(date);
+  const tasks = (entry.tasks || []).map((task) => ({
+    title: task.title,
+    weight: task.weight,
+    minimum: task.minimum,
+    done: task.done,
+    elapsedMinutes: Math.round((Number(task.elapsedSeconds) || 0) / 60),
+  }));
+  return {
+    all: tasks,
+    completed: tasks.filter((task) => task.done),
+    incomplete: tasks.filter((task) => !task.done),
+    minimumIncomplete: tasks.filter((task) => task.minimum && !task.done),
+  };
+}
+
+function getScheduleContextForAi(date = getSelectedDate()) {
+  return {
+    date,
+    events: getCalendarEventsForDate(date).map((event) => ({
+      title: event.title || "予定",
+      start: event.start || "",
+      end: event.end || "",
+      allDay: Boolean(event.allDay),
+      location: event.location || "",
+      color: event.color || "",
+    })),
+    agenda: getAgendaItemsForDate(date),
+  };
+}
+
+function getAiPlanningPayload() {
+  const date = els.entryDate.value;
+  const entry = getEntry(date);
+  return {
+    goal: getActiveGoalText(),
+    goals: getGoalContextForAi(date),
+    date,
+    place: entry.place || "",
+    context: entry.context || "",
+    schedule: getScheduleContextForAi(date),
+    calendarEvents: getCalendarEventsForDate(date),
+    health: getHealthForDate(date) || null,
+    screenTime: entry.screenTime || null,
+    currentTasks: entry.tasks,
+    taskContext: getTaskContextForAi(date),
+    recentEntries: getRecentEntries(),
+  };
 }
 
 function getHealthForDate(date = els.entryDate.value) {
@@ -2280,16 +2365,11 @@ function renderAiDiary(entry) {
 function getDiaryPayload() {
   const entry = getEntry();
   return {
-    goal: getActiveGoalText(),
-    date: els.entryDate.value,
+    ...getAiPlanningPayload(),
     place: entry.place || "",
     context: entry.context || "",
     reflection: els.reflection.value.trim() || entry.reflection || "",
-    calendarEvents: getCalendarEventsForDate(),
-    health: getHealthForDate() || null,
-    screenTime: entry.screenTime || null,
     tasks: entry.tasks,
-    recentEntries: getRecentEntries(),
   };
 }
 
@@ -2453,21 +2533,10 @@ els.clePaste?.addEventListener("click", async () => {
 });
 
 els.suggestTasks.addEventListener("click", async () => {
-  const entry = getEntry();
   setAiStatus("考え中...");
   els.suggestTasks.disabled = true;
   try {
-    const result = await postAi("/api/suggest-tasks", {
-      goal: getActiveGoalText(),
-      date: els.entryDate.value,
-      place: entry.place || "",
-      context: entry.context || "",
-      calendarEvents: getCalendarEventsForDate(),
-      health: getHealthForDate() || null,
-      screenTime: entry.screenTime || null,
-      currentTasks: entry.tasks,
-      recentEntries: getRecentEntries(),
-    });
+    const result = await postAi("/api/suggest-tasks", getAiPlanningPayload());
     renderAiSuggestions(result);
     setAiStatus("提案しました");
   } catch (error) {
@@ -2490,14 +2559,8 @@ els.suggestWeight.addEventListener("click", async () => {
   els.suggestWeight.disabled = true;
   try {
     const result = await postAi("/api/suggest-weight", {
-      goal: getActiveGoalText(),
+      ...getAiPlanningPayload(),
       taskTitle: title,
-      date: els.entryDate.value,
-      place: entry.place || "",
-      context: entry.context || "",
-      health: getHealthForDate() || null,
-      screenTime: entry.screenTime || null,
-      recentEntries: getRecentEntries(),
     });
     els.taskWeight.value = String(result.weight || 3);
     setAiStatus(result.reason ? `重み ${result.weight}: ${result.reason}` : `重み ${result.weight} を提案しました`);
@@ -2519,17 +2582,10 @@ els.evaluateDay.addEventListener("click", async () => {
   els.evaluateDay.disabled = true;
   try {
     const result = await postAi("/api/evaluate-day", {
-      goal: getActiveGoalText(),
-      date: els.entryDate.value,
-      place: entry.place || "",
-      context: entry.context || "",
+      ...getAiPlanningPayload(),
       reflection: entry.reflection || "",
-      calendarEvents: getCalendarEventsForDate(),
-      health: getHealthForDate() || null,
-      screenTime: entry.screenTime || null,
       ruleSuggestedGrade: suggestGrade(entry.tasks),
       tasks: entry.tasks,
-      recentEntries: getRecentEntries(),
       gradeDefinitions: gradeLabels,
     });
     if (!gradeOrder.includes(result.grade)) {
