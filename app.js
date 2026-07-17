@@ -2758,7 +2758,6 @@ els.cloudSyncSave?.addEventListener("click", async () => {
 });
 
 els.cloudSyncLoad?.addEventListener("click", async () => {
-  if (!confirm("クラウドのデータでこのアプリの内容を更新しますか？")) return;
   setSyncStatus("クラウドから読み込み中...");
   try {
     await loadCloudState();
