@@ -1,4 +1,4 @@
-const cacheName = "goal-task-journal-v42-web-passcode-sync";
+const cacheName = "goal-task-journal-v44-web-health-shortcut";
 const appFiles = [
   "./",
   "./index.html",

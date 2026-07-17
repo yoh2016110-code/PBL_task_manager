@@ -88,6 +88,7 @@ const els = {
   minimumCount: document.querySelector("#minimumCount"),
   extraCount: document.querySelector("#extraCount"),
   healthFile: document.querySelector("#healthFile"),
+  healthShortcutSync: document.querySelector("#healthShortcutSync"),
   healthSummary: document.querySelector("#healthSummary"),
   healthTodayChart: document.querySelector("#healthTodayChart"),
   healthStatus: document.querySelector("#healthStatus"),
@@ -1403,6 +1404,73 @@ function importHealthByDate(healthByDate) {
   return Object.keys(healthByDate).length;
 }
 
+function decodeHealthShortcutPayload(rawValue) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) throw new Error("ショートカットのJSONが空です");
+  const decodedText = decodeURIComponent(raw);
+  if (decodedText.trim().startsWith("{") || decodedText.trim().startsWith("[")) return decodedText;
+
+  const normalized = raw.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function getIncomingHealthPayload() {
+  const params = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.startsWith("#?") ? window.location.hash.slice(2) : "";
+  const hashParams = new URLSearchParams(hash);
+  return (
+    params.get("health") ||
+    params.get("healthJson") ||
+    params.get("healthData") ||
+    hashParams.get("health") ||
+    hashParams.get("healthJson") ||
+    hashParams.get("healthData") ||
+    ""
+  );
+}
+
+function clearIncomingHealthPayload() {
+  if (!history.replaceState) return;
+  const url = new URL(window.location.href);
+  ["health", "healthJson", "healthData"].forEach((key) => url.searchParams.delete(key));
+  if (url.hash.startsWith("#?")) url.hash = "";
+  history.replaceState(null, "", url.toString());
+}
+
+function importHealthFromShortcutUrl() {
+  const payload = getIncomingHealthPayload();
+  if (!payload) return false;
+  try {
+    const text = decodeHealthShortcutPayload(payload);
+    const healthByDate = parseHealthJsonByDate(text, els.entryDate.value);
+    const dayCount = importHealthByDate(healthByDate);
+    els.healthStatus.textContent = `${dayCount}日分のヘルスケア情報をショートカットから同期しました`;
+    els.healthStatus.style.color = "";
+    clearIncomingHealthPayload();
+    return true;
+  } catch (error) {
+    els.healthStatus.textContent = error.message || "ショートカットのヘルスケアJSONを読み込めませんでした";
+    els.healthStatus.style.color = "var(--danger)";
+    return false;
+  }
+}
+
+function runHealthShortcut() {
+  const shortcutName = String(window.GTJ_HEALTH_SHORTCUT_NAME || "ヘルスケア作成").trim();
+  const callbackUrl = new URL(window.location.href);
+  ["health", "healthJson", "healthData"].forEach((key) => callbackUrl.searchParams.delete(key));
+  callbackUrl.hash = "";
+  const shortcutUrl =
+    `shortcuts://run-shortcut?name=${encodeURIComponent(shortcutName)}` +
+    `&input=text&text=${encodeURIComponent(callbackUrl.toString())}`;
+  window.location.href = shortcutUrl;
+  els.healthStatus.textContent = `ショートカット「${shortcutName}」を起動します`;
+  els.healthStatus.style.color = "";
+}
+
 function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -2563,6 +2631,10 @@ els.healthFile.addEventListener("change", async () => {
   }
 });
 
+els.healthShortcutSync?.addEventListener("click", () => {
+  runHealthShortcut();
+});
+
 els.calendarFile.addEventListener("change", async () => {
   const files = Array.from(els.calendarFile.files || []);
   if (!files.length) return;
@@ -2767,6 +2839,7 @@ els.cloudSyncLoad?.addEventListener("click", async () => {
 });
 
 render();
+importHealthFromShortcutUrl();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
