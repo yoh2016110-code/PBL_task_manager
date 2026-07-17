@@ -1147,10 +1147,16 @@ function renderHistory() {
 }
 
 function getChartEntries() {
+  const baseDate = dateFromIsoDate(todayString);
+  const startDate = baseDate ? addDays(baseDate, -6) : null;
   return Object.entries(state.entries)
     .filter(([, entry]) => entry.health || entry.screenTime)
+    .filter(([date]) => {
+      if (!startDate || !baseDate) return true;
+      const entryDate = dateFromIsoDate(date);
+      return entryDate && entryDate >= startDate && entryDate <= baseDate;
+    })
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-14)
     .map(([date, entry]) => ({ date, entry }));
 }
 
