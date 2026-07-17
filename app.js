@@ -44,8 +44,6 @@ const els = {
   calendarGoalsButton: document.querySelector("#calendarGoalsButton"),
   calendarEventsButton: document.querySelector("#calendarEventsButton"),
   stepsChart: document.querySelector("#stepsChart"),
-  sleepChart: document.querySelector("#sleepChart"),
-  workoutChart: document.querySelector("#workoutChart"),
   screenChart: document.querySelector("#screenChart"),
   goalForm: document.querySelector("#goalForm"),
   goalInput: document.querySelector("#goalInput"),
@@ -90,7 +88,6 @@ const els = {
   healthFile: document.querySelector("#healthFile"),
   healthShortcutSync: document.querySelector("#healthShortcutSync"),
   healthSummary: document.querySelector("#healthSummary"),
-  healthTodayChart: document.querySelector("#healthTodayChart"),
   healthStatus: document.querySelector("#healthStatus"),
   screenFile: document.querySelector("#screenFile"),
   screenShotFile: document.querySelector("#screenShotFile"),
@@ -765,18 +762,12 @@ function renderSummary(tasks) {
 function renderHealth(health) {
   els.healthSummary.innerHTML = "";
   if (!health) {
-    drawInlineBarChart(els.healthTodayChart, [], {
-      color: "#0f766e",
-      unit: "",
-      emptyText: "ヘルスケア情報なし",
-    });
+    els.healthSummary.innerHTML = '<p class="empty">ヘルスケア情報なし</p>';
     return;
   }
 
   const metrics = [
     ["歩数", `${Number(health.steps || 0).toLocaleString()}歩`],
-    ["睡眠", formatMinutes(health.sleepMinutes || 0)],
-    ["ワークアウト", formatMinutes(health.workoutMinutes || 0)],
     ["消費エネルギー", `${Math.round(health.activeEnergy || 0).toLocaleString()}kcal`],
   ];
 
@@ -787,16 +778,6 @@ function renderHealth(health) {
     els.healthSummary.append(item);
   });
 
-  drawInlineBarChart(
-    els.healthTodayChart,
-    [
-      { label: "歩数", value: Number(health.steps || 0) / 8000, display: `${Number(health.steps || 0).toLocaleString()}歩` },
-      { label: "睡眠", value: Number(health.sleepMinutes || 0) / 420, display: `${(Number(health.sleepMinutes || 0) / 60).toFixed(1)}h` },
-      { label: "運動", value: Number(health.workoutMinutes || 0) / 30, display: `${Math.round(health.workoutMinutes || 0)}分` },
-      { label: "消費", value: Number(health.activeEnergy || 0) / 500, display: `${Math.round(health.activeEnergy || 0).toLocaleString()}kcal` },
-    ],
-    { color: "#0f766e", unit: "" }
-  );
 }
 
 function renderScreenTime(screenTime) {
@@ -1029,7 +1010,7 @@ function renderHistory() {
       entry.context ? `状況: ${entry.context}` : "",
       getTasksElapsedSeconds(entry.tasks || []) ? `作業: ${formatMinutes(Math.floor(getTasksElapsedSeconds(entry.tasks || []) / 60))}` : "",
       health ? `歩数: ${Number(health.steps || 0).toLocaleString()}歩` : "",
-      health ? `睡眠: ${formatMinutes(health.sleepMinutes || 0)}` : "",
+      health ? `消費: ${Math.round(health.activeEnergy || 0).toLocaleString()}kcal` : "",
       entry.screenTime ? `画面: ${formatMinutes(entry.screenTime.totalMinutes || 0)}` : "",
     ].filter(Boolean);
     const card = document.createElement("article");
@@ -1191,29 +1172,20 @@ function shortLabel(label) {
 
 function renderCharts() {
   const chartEntries = getChartEntries();
-  const rows = chartEntries.map(({ date, entry }) => ({
-    date,
-    label: date,
-    steps: entry.health?.steps || 0,
-    sleepHours: (entry.health?.sleepMinutes || 0) / 60,
-    workoutMinutes: entry.health?.workoutMinutes || 0,
-    screenHours: (entry.screenTime?.totalMinutes || 0) / 60,
-  }));
+  const rows = chartEntries.map(({ date, entry }) => {
+    const health = getHealthForDate(date);
+    return {
+      date,
+      label: date,
+      steps: health?.steps || 0,
+      screenHours: (entry.screenTime?.totalMinutes || 0) / 60,
+    };
+  });
 
   drawBarChart(
     els.stepsChart,
     rows.map((row) => ({ label: row.label, value: row.steps })),
     { color: "#0f766e", goal: 8000, format: (value) => `${Math.round(value).toLocaleString()}歩` }
-  );
-  drawBarChart(
-    els.sleepChart,
-    rows.map((row) => ({ label: row.label, value: row.sleepHours })),
-    { color: "#2563eb", goal: 7, format: (value) => `${value.toFixed(1)}h` }
-  );
-  drawBarChart(
-    els.workoutChart,
-    rows.map((row) => ({ label: row.label, value: row.workoutMinutes })),
-    { color: "#b7791f", goal: 30, format: (value) => `${Math.round(value)}分` }
   );
   drawBarChart(
     els.screenChart,
@@ -1378,8 +1350,8 @@ function normalizeHealthJsonItem(item, fallbackDate) {
     importedAt: new Date().toISOString(),
     sourceDate,
     steps: Math.round(numberFromKeys(item, ["steps", "stepCount", "歩数"])),
-    sleepMinutes: Math.round(numberFromKeys(item, ["sleepMinutes", "sleep", "睡眠分", "睡眠"])),
-    workoutMinutes: Math.round(numberFromKeys(item, ["workoutMinutes", "workout", "exerciseMinutes", "運動分", "ワークアウト分", "ワークアウト"])),
+    sleepMinutes: 0,
+    workoutMinutes: 0,
     activeEnergy: Math.round(numberFromKeys(item, ["activeEnergy", "calories", "activeCalories", "消費カロリー", "アクティブエネルギー"])),
     walkingDistance: numberFromKeys(item, ["walkingDistance", "distance", "歩行距離"]),
   };
@@ -2342,10 +2314,9 @@ function createLocalDiary(payload) {
   } else {
     parts.push("今日はまだ完了したタスクが少なく、次に何を進めるかを決め直す余地がある。");
   }
-  if (health.steps || health.sleepMinutes || health.activeEnergy) {
+  if (health.steps || health.activeEnergy) {
     const healthText = [
       health.steps ? `歩数${Number(health.steps).toLocaleString()}歩` : "",
-      health.sleepMinutes ? `睡眠${(Number(health.sleepMinutes) / 60).toFixed(1)}時間` : "",
       health.activeEnergy ? `消費${Math.round(Number(health.activeEnergy)).toLocaleString()}kcal` : "",
     ].filter(Boolean).join("、");
     parts.push(`体の記録は${healthText}。`);
