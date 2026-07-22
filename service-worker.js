@@ -1,4 +1,4 @@
-const cacheName = "goal-task-journal-v51-web-weekly-charts";
+const cacheName = "goal-task-journal-v53-web-diary-sources";
 const appFiles = [
   "./",
   "./index.html",

@@ -670,13 +670,10 @@ function renderUrgentDeadlines() {
       <strong>${escapeHtml(goal.course ? `${goal.course}: ${goal.title}` : goal.title)}</strong>
       <em>${escapeHtml(goal.deadline || "未設定")}</em>
     `;
+    item.setAttribute("aria-label", `${goal.title}を達成済みにする`);
     item.addEventListener("click", () => {
-      if (openGoalUrl(goal)) return;
-      if (goal.deadline) {
-        els.entryDate.value = goal.deadline;
-        setCalendarMonthFromDate(goal.deadline);
-        render();
-      }
+      goal.completedAt = new Date().toISOString();
+      render();
     });
     els.urgentDeadlineList.append(item);
   });
@@ -2491,6 +2488,14 @@ function getDiaryPayload() {
   const entry = getEntry();
   return {
     ...getAiPlanningPayload(),
+    diarySourcePolicy: [
+      "今日のタスクの達成状況",
+      "ヘルスケアの歩数と消費エネルギー",
+      "スクリーンタイム",
+      "期限が近い課題",
+      "カレンダー予定",
+      "場所や状況、振り返り",
+    ],
     place: entry.place || "",
     context: entry.context || "",
     reflection: els.reflection.value.trim() || entry.reflection || "",
@@ -2504,6 +2509,8 @@ function createLocalDiary(payload) {
   const extraDone = doneTasks.filter((task) => !task.minimum).map((task) => task.title);
   const health = payload.health || {};
   const screen = payload.screenTime || {};
+  const urgentGoals = payload.goals?.urgent || [];
+  const events = payload.schedule?.events || payload.calendarEvents || [];
   const parts = [];
 
   parts.push(`${payload.date}の記録。`);
@@ -2518,6 +2525,20 @@ function createLocalDiary(payload) {
     parts.push(`${taskText}に取り組めた。`);
   } else {
     parts.push("今日はまだ完了したタスクが少なく、次に何を進めるかを決め直す余地がある。");
+  }
+  if (urgentGoals.length) {
+    const urgentText = urgentGoals
+      .slice(0, 3)
+      .map((goal) => `${goal.course ? `${goal.course}: ` : ""}${goal.title}${goal.daysLeft === 0 ? "（今日が期限）" : goal.daysLeft ? `（あと${goal.daysLeft}日）` : ""}`)
+      .join("、");
+    parts.push(`期限が近い課題として${urgentText}が残っている。`);
+  }
+  if (events.length) {
+    const eventText = events
+      .slice(0, 3)
+      .map((event) => event.title || "予定")
+      .join("、");
+    parts.push(`予定は${eventText}があり、その合間で行動を組み立てた。`);
   }
   if (health.steps || health.activeEnergy) {
     const healthText = [
